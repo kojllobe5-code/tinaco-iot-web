@@ -3,13 +3,14 @@ import requests
 from componentes import BarraNivelAgua
 
 app = Flask(__name__)
-
 app.secret_key = "clave_secreta_tinaco"
 
 USUARIO_CORRECTO = "admin"
 PASSWORD_CORRECTO = "1234"
 
-FIREBASE_URL = "https://proyectoiot-4b519-default-rtdb.firebaseio.com/tinaco.json"
+BASE_URL = "https://proyectoiot-4b519-default-rtdb.firebaseio.com"
+TINACO_URL = BASE_URL + "/tinaco.json"
+HISTORIAL_URL = BASE_URL + "/historial.json"
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -39,7 +40,6 @@ def login():
                 align-items: center;
                 height: 100vh;
             }}
-
             .login {{
                 background: white;
                 padding: 30px;
@@ -48,7 +48,6 @@ def login():
                 text-align: center;
                 width: 300px;
             }}
-
             input {{
                 width: 90%;
                 padding: 10px;
@@ -56,7 +55,6 @@ def login():
                 border-radius: 8px;
                 border: 1px solid #ccc;
             }}
-
             button {{
                 width: 95%;
                 padding: 10px;
@@ -66,24 +64,20 @@ def login():
                 border-radius: 8px;
                 cursor: pointer;
             }}
-
             .error {{
                 color: red;
                 margin-top: 10px;
             }}
         </style>
     </head>
-
     <body>
         <div class="login">
             <h2>Acceso al sistema</h2>
-
             <form method="POST">
                 <input type="text" name="usuario" placeholder="Usuario" required>
                 <input type="password" name="password" placeholder="Contraseña" required>
                 <button type="submit">Entrar</button>
             </form>
-
             <div class="error">{error}</div>
         </div>
     </body>
@@ -96,46 +90,90 @@ def dashboard():
     if not session.get("logueado"):
         return redirect(url_for("login"))
 
+    porcentaje = 0
+    hora = "Sin datos"
+    estado = "Sin datos"
+    historial_filas = ""
+
     try:
-        respuesta = requests.get(FIREBASE_URL, timeout=5)
-        datos = respuesta.json()
+        r = requests.get(TINACO_URL, timeout=5)
+        datos = r.json() or {}
 
-        porcentaje = float(datos.get("porcentaje_agua", 0))
-        porcentaje = round(porcentaje, 1)
-
+        porcentaje = round(float(datos.get("porcentaje_agua", 0)), 1)
         hora = datos.get("hora_chequeo", "Sin datos")
+        estado = datos.get("estado", "Sin datos")
 
     except Exception as e:
-        print("Error leyendo Firebase:", e)
-        porcentaje = 0
+        print("Error leyendo tinaco:", e)
         hora = "Error al leer Firebase"
+        estado = "Error"
 
-    barra = BarraNivelAgua("Nivel del Tinaco", porcentaje)
+    try:
+        r_hist = requests.get(HISTORIAL_URL, timeout=5)
+        historial = r_hist.json() or {}
+
+        lista = list(historial.values())
+        ultimas = lista[-4:]
+        ultimas.reverse()
+
+        for lectura in ultimas:
+            h = lectura.get("hora_chequeo", "--")
+            p = lectura.get("porcentaje_agua", "--")
+            e = lectura.get("estado", "--")
+
+            historial_filas += f"""
+            <tr>
+                <td>{h}</td>
+                <td>{p}%</td>
+                <td>{e}</td>
+            </tr>
+            """
+
+    except Exception as e:
+        print("Error leyendo historial:", e)
+        historial_filas = """
+        <tr>
+            <td colspan="3">Sin historial disponible</td>
+        </tr>
+        """
+
+    if historial_filas == "":
+        historial_filas = """
+        <tr>
+            <td colspan="3">Aún no hay historial</td>
+        </tr>
+        """
+
+    barra = BarraNivelAgua("Nivel actual del Tinaco", porcentaje)
 
     return f"""
     <html>
     <head>
         <title>Sistema Tinaco IoT</title>
         <meta http-equiv="refresh" content="5">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <style>
             body {{
-                font-family: Arial;
+                font-family: Arial, sans-serif;
                 background: #eef2f3;
                 margin: 0;
                 padding: 20px;
             }}
-
             .contenedor {{
-                max-width: 480px;
+                max-width: 520px;
                 margin: auto;
             }}
-
             h1 {{
                 text-align: center;
                 color: #1e3a5f;
+                margin-bottom: 5px;
             }}
-
+            .subtitulo {{
+                text-align: center;
+                color: #555;
+                margin-bottom: 20px;
+            }}
             .card {{
                 background: white;
                 padding: 20px;
@@ -144,13 +182,11 @@ def dashboard():
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                 text-align: center;
             }}
-
             .nivel-numero {{
                 font-size: 55px;
                 font-weight: bold;
                 color: #1e3a5f;
             }}
-
             .barra-contenedor {{
                 width: 100%;
                 height: 32px;
@@ -159,22 +195,38 @@ def dashboard():
                 overflow: hidden;
                 margin: 18px 0;
             }}
-
             .barra-relleno {{
                 height: 100%;
                 border-radius: 20px;
+                transition: width 0.5s ease;
             }}
-
             .estado {{
                 font-size: 22px;
                 font-weight: bold;
             }}
-
             .dato {{
-                font-size: 20px;
-                margin: 12px 0;
+                font-size: 19px;
+                margin: 10px 0;
             }}
-
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 12px;
+                font-size: 15px;
+            }}
+            th {{
+                background: #1e3a5f;
+                color: white;
+                padding: 10px;
+            }}
+            td {{
+                padding: 10px;
+                border-bottom: 1px solid #ddd;
+                text-align: center;
+            }}
+            tr:nth-child(even) {{
+                background: #f5f5f5;
+            }}
             .logout {{
                 display: block;
                 text-align: center;
@@ -189,11 +241,25 @@ def dashboard():
     <body>
         <div class="contenedor">
             <h1>Sistema IoT de Tinaco</h1>
+            <div class="subtitulo">Monitoreo de nivel de agua</div>
 
             {barra.render()}
 
             <div class="card">
+                <div class="dato"><b>Estado actual:</b> {estado}</div>
                 <div class="dato"><b>Hora del chequeo:</b> {hora}</div>
+            </div>
+
+            <div class="card">
+                <h2>Últimas 4 actualizaciones</h2>
+                <table>
+                    <tr>
+                        <th>Hora</th>
+                        <th>Nivel</th>
+                        <th>Estado</th>
+                    </tr>
+                    {historial_filas}
+                </table>
             </div>
 
             <a class="logout" href="/logout">Cerrar sesión</a>
