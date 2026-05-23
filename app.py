@@ -93,6 +93,7 @@ def dashboard():
     porcentaje = 0
     hora = "Sin datos"
     estado = "Sin datos"
+    bomba = "Sin datos"
     historial_filas = ""
 
     try:
@@ -102,11 +103,13 @@ def dashboard():
         porcentaje = round(float(datos.get("porcentaje_agua", 0)), 1)
         hora = datos.get("hora_chequeo", "Sin datos")
         estado = datos.get("estado", "Sin datos")
+        bomba = datos.get("bomba", "Sin datos")
 
     except Exception as e:
         print("Error leyendo tinaco:", e)
         hora = "Error al leer Firebase"
         estado = "Error"
+        bomba = "Error"
 
     try:
         r_hist = requests.get(HISTORIAL_URL, timeout=5)
@@ -120,12 +123,14 @@ def dashboard():
             h = lectura.get("hora_chequeo", "--")
             p = lectura.get("porcentaje_agua", "--")
             e = lectura.get("estado", "--")
+            b = lectura.get("bomba", "--")
 
             historial_filas += f"""
             <tr>
                 <td>{h}</td>
                 <td>{p}%</td>
                 <td>{e}</td>
+                <td>{b}</td>
             </tr>
             """
 
@@ -133,14 +138,14 @@ def dashboard():
         print("Error leyendo historial:", e)
         historial_filas = """
         <tr>
-            <td colspan="3">Sin historial disponible</td>
+            <td colspan="4">Sin historial disponible</td>
         </tr>
         """
 
     if historial_filas == "":
         historial_filas = """
         <tr>
-            <td colspan="3">Aún no hay historial</td>
+            <td colspan="4">Aún no hay historial</td>
         </tr>
         """
 
@@ -161,7 +166,7 @@ def dashboard():
                 padding: 20px;
             }}
             .contenedor {{
-                max-width: 520px;
+                max-width: 560px;
                 margin: auto;
             }}
             h1 {{
@@ -208,11 +213,17 @@ def dashboard():
                 font-size: 19px;
                 margin: 10px 0;
             }}
+            .bomba {{
+                font-size: 21px;
+                font-weight: bold;
+                margin: 12px 0;
+                color: #1e3a5f;
+            }}
             table {{
                 width: 100%;
                 border-collapse: collapse;
                 margin-top: 12px;
-                font-size: 15px;
+                font-size: 14px;
             }}
             th {{
                 background: #1e3a5f;
@@ -247,6 +258,7 @@ def dashboard():
 
             <div class="card">
                 <div class="dato"><b>Estado actual:</b> {estado}</div>
+                <div class="bomba">Bomba: {bomba}</div>
                 <div class="dato"><b>Hora del chequeo:</b> {hora}</div>
             </div>
 
@@ -257,6 +269,7 @@ def dashboard():
                         <th>Hora</th>
                         <th>Nivel</th>
                         <th>Estado</th>
+                        <th>Bomba</th>
                     </tr>
                     {historial_filas}
                 </table>
