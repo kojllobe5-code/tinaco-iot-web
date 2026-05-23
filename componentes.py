@@ -44,15 +44,12 @@ class BarraNivelAgua(ComponenteBase):
         return f"""
         <div class="card">
             <h2>{self.titulo}</h2>
-
             <div class="nivel-numero">{self.porcentaje}%</div>
 
             <div class="barra-contenedor">
                 <div class="barra-relleno" style="width:{self.porcentaje}%; background:{color};"></div>
             </div>
 
-            <div class="estado" style="color:{color};">
-                {estado}
-            </div>
+            <div class="estado" style="color:{color};">{estado}</div>
         </div>
         """
