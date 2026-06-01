@@ -11,6 +11,7 @@ PASSWORD_CORRECTO = "1234"
 BASE_URL = "https://proyectoiot-4b519-default-rtdb.firebaseio.com"
 TINACO_URL = BASE_URL + "/tinaco.json"
 HISTORIAL_URL = BASE_URL + "/historial.json"
+CONTROL_BOMBA_URL = BASE_URL + "/tinaco/control_bomba.json"
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -85,6 +86,24 @@ def login():
     """
 
 
+@app.route("/control/<modo>")
+def cambiar_control_bomba(modo):
+    if not session.get("logueado"):
+        return redirect(url_for("login"))
+
+    modo = modo.upper()
+
+    if modo not in ["AUTO", "ENCENDER", "APAGAR"]:
+        return redirect(url_for("dashboard"))
+
+    try:
+        requests.put(CONTROL_BOMBA_URL, json=modo, timeout=5)
+    except Exception as e:
+        print("Error cambiando control de bomba:", e)
+
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/dashboard")
 def dashboard():
     if not session.get("logueado"):
@@ -94,6 +113,7 @@ def dashboard():
     hora = "Sin datos"
     estado = "Sin datos"
     bomba = "Sin datos"
+    control_bomba = "AUTO"
     historial_filas = ""
 
     try:
@@ -104,12 +124,14 @@ def dashboard():
         hora = datos.get("hora_chequeo", "Sin datos")
         estado = datos.get("estado", "Sin datos")
         bomba = datos.get("bomba", "Sin datos")
+        control_bomba = datos.get("control_bomba", "AUTO")
 
     except Exception as e:
         print("Error leyendo tinaco:", e)
         hora = "Error al leer Firebase"
         estado = "Error"
         bomba = "Error"
+        control_bomba = "Error"
 
     try:
         r_hist = requests.get(HISTORIAL_URL, timeout=5)
@@ -219,6 +241,30 @@ def dashboard():
                 margin: 12px 0;
                 color: #1e3a5f;
             }}
+            .botones {{
+                display: flex;
+                gap: 8px;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin-top: 15px;
+            }}
+            .btn {{
+                padding: 10px 14px;
+                border-radius: 8px;
+                color: white;
+                text-decoration: none;
+                font-weight: bold;
+                font-size: 14px;
+            }}
+            .auto {{
+                background: #1e88e5;
+            }}
+            .on {{
+                background: #388e3c;
+            }}
+            .off {{
+                background: #d32f2f;
+            }}
             table {{
                 width: 100%;
                 border-collapse: collapse;
@@ -259,7 +305,14 @@ def dashboard():
             <div class="card">
                 <div class="dato"><b>Estado actual:</b> {estado}</div>
                 <div class="bomba">Bomba: {bomba}</div>
+                <div class="dato"><b>Control:</b> {control_bomba}</div>
                 <div class="dato"><b>Hora del chequeo:</b> {hora}</div>
+
+                <div class="botones">
+                    <a class="btn auto" href="/control/AUTO">Automático</a>
+                    <a class="btn on" href="/control/ENCENDER">Encender bomba</a>
+                    <a class="btn off" href="/control/APAGAR">Apagar bomba</a>
+                </div>
             </div>
 
             <div class="card">
@@ -289,4 +342,5 @@ def logout():
 
 
 if __name__ == "__main__":
+    app.run(debug=False)
     app.run(debug=False)
