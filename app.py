@@ -9,10 +9,15 @@ USUARIO_CORRECTO = "admin"
 PASSWORD_CORRECTO = "1234"
 
 BASE_URL = "https://proyectoiot-4b519-default-rtdb.firebaseio.com"
+
 TINACO_URL = BASE_URL + "/tinaco.json"
 HISTORIAL_URL = BASE_URL + "/historial.json"
+BOMBA_URL = BASE_URL + "/tinaco/bomba.json"
 CONTROL_BOMBA_URL = BASE_URL + "/tinaco/control_bomba.json"
 FLUJO_URL = BASE_URL + "/flujo.json"
+
+IFTTT_ON_URL = "https://maker.ifttt.com/trigger/bomba_on/with/key/oWb2eNNWYdwlHvcH-rEKiz8Dw-wGbtJxA_MEIpxC09O"
+IFTTT_OFF_URL = "https://maker.ifttt.com/trigger/bomba_off/with/key/oWb2eNNWYdwlHvcH-rEKiz8Dw-wGbtJxA_MEIpxC09O"
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -88,14 +93,28 @@ def login():
 
 
 @app.route("/control/<modo>")
-def cambiar_control_bomba(modo):
+def control_bomba(modo):
     if not session.get("logueado"):
         return redirect(url_for("login"))
 
     modo = modo.upper()
 
-    if modo in ["AUTO", "ENCENDER", "APAGAR"]:
-        requests.put(CONTROL_BOMBA_URL, json=modo, timeout=5)
+    try:
+        if modo == "ENCENDER":
+            requests.get(IFTTT_ON_URL, timeout=10)
+            requests.put(BOMBA_URL, json="Encendida", timeout=5)
+            requests.put(CONTROL_BOMBA_URL, json="ENCENDER", timeout=5)
+
+        elif modo == "APAGAR":
+            requests.get(IFTTT_OFF_URL, timeout=10)
+            requests.put(BOMBA_URL, json="Apagada", timeout=5)
+            requests.put(CONTROL_BOMBA_URL, json="APAGAR", timeout=5)
+
+        elif modo == "AUTO":
+            requests.put(CONTROL_BOMBA_URL, json="AUTO", timeout=5)
+
+    except Exception as e:
+        print("Error controlando bomba:", e)
 
     return redirect(url_for("dashboard"))
 
@@ -109,7 +128,7 @@ def dashboard():
     hora = "Sin datos"
     estado = "Sin datos"
     bomba = "Sin datos"
-    control_bomba = "AUTO"
+    control_bomba_actual = "AUTO"
     estado_flujo_tinaco = "Sin datos"
 
     litros_minuto = 0
@@ -120,29 +139,34 @@ def dashboard():
     historial_filas = ""
 
     try:
-        datos = requests.get(TINACO_URL, timeout=5).json() or {}
+        r = requests.get(TINACO_URL, timeout=5)
+        datos = r.json() or {}
 
         porcentaje = round(float(datos.get("porcentaje_agua", 0)), 1)
         hora = datos.get("hora_chequeo", "Sin datos")
         estado = datos.get("estado", "Sin datos")
         bomba = datos.get("bomba", "Sin datos")
-        control_bomba = datos.get("control_bomba", "AUTO")
+        control_bomba_actual = datos.get("control_bomba", "AUTO")
         estado_flujo_tinaco = datos.get("estado_flujo", "Sin datos")
+
     except Exception as e:
-        print("Error tinaco:", e)
+        print("Error leyendo tinaco:", e)
 
     try:
-        flujo = requests.get(FLUJO_URL, timeout=5).json() or {}
+        r_flujo = requests.get(FLUJO_URL, timeout=5)
+        flujo = r_flujo.json() or {}
 
         litros_minuto = flujo.get("litros_minuto", 0)
         litros_totales = flujo.get("litros_totales", 0)
         estado_flujo = flujo.get("estado_flujo", "Sin datos")
         hora_flujo = flujo.get("hora_chequeo", "Sin datos")
+
     except Exception as e:
-        print("Error flujo:", e)
+        print("Error leyendo flujo:", e)
 
     try:
-        historial = requests.get(HISTORIAL_URL, timeout=5).json() or {}
+        r_hist = requests.get(HISTORIAL_URL, timeout=5)
+        historial = r_hist.json() or {}
 
         lista = list(historial.values())
         ultimas = lista[-4:]
@@ -164,7 +188,9 @@ def dashboard():
                 <td>{f}</td>
             </tr>
             """
-    except Exception:
+
+    except Exception as e:
+        print("Error leyendo historial:", e)
         historial_filas = """
         <tr>
             <td colspan="5">Sin historial disponible</td>
@@ -195,12 +221,13 @@ def dashboard():
                 padding: 20px;
             }}
             .contenedor {{
-                max-width: 640px;
+                max-width: 650px;
                 margin: auto;
             }}
             h1 {{
                 text-align: center;
                 color: #1e3a5f;
+                margin-bottom: 5px;
             }}
             .subtitulo {{
                 text-align: center;
@@ -231,17 +258,18 @@ def dashboard():
             .barra-relleno {{
                 height: 100%;
                 border-radius: 20px;
+                transition: width 0.5s ease;
             }}
             .estado {{
                 font-size: 22px;
                 font-weight: bold;
             }}
             .dato {{
-                font-size: 19px;
+                font-size: 18px;
                 margin: 10px 0;
             }}
             .bomba {{
-                font-size: 21px;
+                font-size: 22px;
                 font-weight: bold;
                 margin: 12px 0;
                 color: #1e3a5f;
@@ -254,16 +282,23 @@ def dashboard():
                 margin-top: 15px;
             }}
             .btn {{
-                padding: 10px 14px;
-                border-radius: 8px;
+                padding: 11px 15px;
+                border-radius: 9px;
                 color: white;
                 text-decoration: none;
                 font-weight: bold;
                 font-size: 14px;
+                display: inline-block;
             }}
-            .auto {{ background: #1e88e5; }}
-            .on {{ background: #388e3c; }}
-            .off {{ background: #d32f2f; }}
+            .auto {{
+                background: #1e88e5;
+            }}
+            .on {{
+                background: #388e3c;
+            }}
+            .off {{
+                background: #d32f2f;
+            }}
             table {{
                 width: 100%;
                 border-collapse: collapse;
@@ -302,11 +337,12 @@ def dashboard():
             {barra.render()}
 
             <div class="card">
-                <div class="dato"><b>Estado actual:</b> {estado}</div>
+                <h2>Estado general</h2>
+                <div class="dato"><b>Estado del nivel:</b> {estado}</div>
                 <div class="bomba">Bomba: {bomba}</div>
-                <div class="dato"><b>Control bomba:</b> {control_bomba}</div>
+                <div class="dato"><b>Control bomba:</b> {control_bomba_actual}</div>
                 <div class="dato"><b>Flujo leído por Arduino:</b> {estado_flujo_tinaco}</div>
-                <div class="dato"><b>Hora:</b> {hora}</div>
+                <div class="dato"><b>Hora del chequeo:</b> {hora}</div>
 
                 <div class="botones">
                     <a class="btn auto" href="/control/AUTO">Automático</a>
